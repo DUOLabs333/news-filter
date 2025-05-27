@@ -91,19 +91,24 @@ h1 {
     align-items: center;
     font-size: 18px;
     font-weight: bold;
-    color: white;
-    border: none;
+    border: 1px solid #ccc; /* Default border for unselected */
     cursor: pointer;
     margin-right: 5px;
     border-radius: 4px;
+    background-color: transparent; /* Default transparent background */
+    color: #333; /* Default text color for transparent buttons */
 }
 
 .action-button.dislike {
     background-color: #dc3545; /* Red */
+    color: white; /* White text for colored button */
+    border-color: #dc3545; /* Match border to background */
 }
 
 .action-button.like {
     background-color: #28a745; /* Green */
+    color: white; /* White text for colored button */
+    border-color: #28a745; /* Match border to background */
 }
 
 .action-button:hover {

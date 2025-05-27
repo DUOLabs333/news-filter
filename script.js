@@ -35,10 +35,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const headlineItem = document.createElement('div');
             headlineItem.classList.add('headline-item');
 
+            // Determine classes for buttons based on headline status
+            let dislikeClass = '';
+            let likeClass = '';
+
+            if (headline.status === 'disliked') {
+                dislikeClass = 'dislike';
+            } else if (headline.status === 'liked') {
+                likeClass = 'like';
+            }
+
             headlineItem.innerHTML = `
                 <div class="action-buttons">
-                    <button class="action-button dislike" data-id="${headline.id}" data-action="dislike">X</button>
-                    <button class="action-button like" data-id="${headline.id}" data-action="like">&#10003;</button>
+                    <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="dislike">X</button>
+                    <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="like">&#10003;</button>
                 </div>
                 <a href="${headline.url}" target="_blank">${headline.title}</a>
             `;
