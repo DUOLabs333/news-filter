@@ -3,13 +3,13 @@
         "id": 1,
         "title": "The Future of WebAssembly",
         "url": "https://example.com/wasm",
-        "status": 1
+        "status": 0
     },
     {
         "id": 2,
         "title": "Building a SPA with Vanilla JS",
         "url": "https://example.com/vanilla-js",
-        "status": 1
+        "status": 0
     },
     {
         "id": 3,
