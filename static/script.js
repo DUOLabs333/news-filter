@@ -50,8 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="headline-content">
                     <div class="action-buttons">
-                        <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="0">X</button>
-                        <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="1">&#10003;</button>
+                        <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="dislike">X</button>
+                        <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="like">&#10003;</button>
                     </div>
                     <a href="${headline.url}" target="_blank">${headline.title}</a>
                 </div>
@@ -66,40 +66,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Function to handle like/dislike actions
-    async function handleAction(id, action) { // action will be 0 or 1 (integer)
+    async function handleAction(key, action) { // action will be 0 or 1 (integer)
         const endpoint = action === 1 ? `/api/headlines/${id}/like` : `/api/headlines/${id}/dislike`;
 
         // Optimistically update UI first: remove the headline from the current client-side list
-        const headlineIndex = headlines.findIndex(h => h.id === id);
-        if (headlineIndex > -1) {
-            headlines.splice(headlineIndex, 1);
-            renderHeadlines(); // Re-render to show immediate removal
-        }
 
-        try {
-            const response = await fetch(endpoint, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                // No body needed as action is in URL
-            });
+	if (headlines.delete(key)){
+		renderHeadlines(); //Re-render to show immediate removal
 
-            if (!response.ok) {
-                console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
-                // If server update fails, re-fetch to revert UI to actual state
-                fetchHeadlinesForCurrentTab();
-            } else {
-                console.log(`Headline ${id} moved to ${action === 1 ? 'liked' : 'disliked'} on server.`);
-                // After successful action, re-fetch headlines for the current tab
-                // to ensure the list is up-to-date and reflects the change.
-                fetchHeadlinesForCurrentTab();
-            }
-        } catch (error) {
-            console.error('Error sending update to server:', error);
-            // If network error, re-fetch to revert UI to actual state
-            fetchHeadlinesForCurrentTab();
-        }
+		try {
+		    const response = await fetch(`/api/headlines/${key}/${action}`, {
+			method: 'GET',
+			headers: {
+			    'Content-Type': 'application/json',
+			},
+		    });
+
+		    if (!response.ok) {
+			console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
+			// If server update fails, re-fetch to revert UI to actual state
+			fetchHeadlinesForCurrentTab();
+		    } else {
+			console.log(`Headline ${id} moved to ${action === 1 ? 'liked' : 'disliked'} on server.`);
+			// After successful action, re-fetch headlines for the current tab
+			// to ensure the list is up-to-date and reflects the change.
+			fetchHeadlinesForCurrentTab();
+		    }
+		} catch (error) {
+		    console.error('Error sending update to server:', error);
+		    // If network error, re-fetch to revert UI to actual state
+		    fetchHeadlinesForCurrentTab();
+		}
+	}
     }
 
     // Function to attach event listeners to action buttons
@@ -112,9 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     isSwiping = false; // Reset flag
                     return;
                 }
-                const id = parseInt(event.target.dataset.id);
-                const action = parseInt(event.target.dataset.action); // Parse to int
-                handleAction(id, action);
+                handleAction(event.target.dataset.id, event.target.dataset.action);
             };
         });
     }
@@ -216,17 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // New function to fetch headlines based on current tab
     async function fetchHeadlinesForCurrentTab() {
-        let fetchUrl = '';
-        if (currentTab === 'all') {
-            fetchUrl = '/api/headlines/all';
-        } else if (currentTab === 'liked') {
-            fetchUrl = '/api/headlines/liked';
-        } else if (currentTab === 'disliked') {
-            fetchUrl = '/api/headlines/disliked';
-        }
-
         try {
-            const response = await fetch(fetchUrl);
+            const response = await fetch(`/api/headlines/${currentTab}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
