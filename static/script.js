@@ -50,14 +50,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Function to handle like/dislike actions
-    function handleAction(id, action) {
+    async function handleAction(id, action) {
         const headlineIndex = headlines.findIndex(h => h.id === id);
         if (headlineIndex > -1) {
-            // Update the status of the headline
+            // Update the status of the headline locally first for immediate visual feedback
             headlines[headlineIndex].status = action;
-            // Re-render headlines to reflect the change
-            renderHeadlines();
-            // TODO: In a real app, you'd send this update to the server
+            renderHeadlines(); // Re-render headlines to reflect the change immediately
+
+            // Now, send this update to the server for persistence
+            try {
+                const response = await fetch(`/api/headlines/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ status: action }),
+                });
+
+                if (!response.ok) {
+                    // If server update fails, log an error.
+                    // In a more robust app, you might revert the local change or show a user-facing error.
+                    console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
+                } else {
+                    console.log(`Headline ${id} status updated to ${action} on server.`);
+                }
+            } catch (error) {
+                console.error('Error sending update to server:', error);
+            }
         }
     }
 
@@ -88,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Fetch headlines from Flask API endpoint
-    fetch('/api/headlines') // Changed URL to Flask endpoint
+    fetch('/api/headlines')
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
