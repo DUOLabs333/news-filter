@@ -11,9 +11,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filteredHeadlines = headlines.filter(headline => {
             if (currentTab === 'all') {
-                return true; // Show all headlines
+                return true; // Show all headlines, including those with null status
+            } else if (currentTab === 'liked') {
+                return headline.status === 1; // Show liked (status 1)
+            } else if (currentTab === 'disliked') {
+                return headline.status === 0; // Show disliked (status 0)
             }
-            return headline.status === currentTab; // Show liked or disliked
+            return false; // Should not happen if currentTab is one of the three
         });
 
         if (filteredHeadlines.length === 0) {
@@ -29,16 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
             let dislikeClass = '';
             let likeClass = '';
 
-            if (headline.status === 'disliked') {
+            if (headline.status === 0) { // Disliked
                 dislikeClass = 'dislike';
-            } else if (headline.status === 'liked') {
+            } else if (headline.status === 1) { // Liked
                 likeClass = 'like';
             }
 
             headlineItem.innerHTML = `
                 <div class="action-buttons">
-                    <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="dislike">X</button>
-                    <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="like">&#10003;</button>
+                    <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="0">X</button>
+                    <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="1">&#10003;</button>
                 </div>
                 <a href="${headline.url}" target="_blank">${headline.title}</a>
             `;
@@ -50,11 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Function to handle like/dislike actions
-    async function handleAction(id, action) {
+    async function handleAction(id, action) { // action will be '0' or '1' string
+        const newStatus = parseInt(action); // Convert to integer
         const headlineIndex = headlines.findIndex(h => h.id === id);
         if (headlineIndex > -1) {
             // Update the status of the headline locally first for immediate visual feedback
-            headlines[headlineIndex].status = action;
+            headlines[headlineIndex].status = newStatus;
             renderHeadlines(); // Re-render headlines to reflect the change immediately
 
             // Now, send this update to the server for persistence
@@ -64,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ status: action }),
+                    body: JSON.stringify({ status: newStatus }), // Send integer status
                 });
 
                 if (!response.ok) {
@@ -72,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // In a more robust app, you might revert the local change or show a user-facing error.
                     console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
                 } else {
-                    console.log(`Headline ${id} status updated to ${action} on server.`);
+                    console.log(`Headline ${id} status updated to ${newStatus} on server.`);
                 }
             } catch (error) {
                 console.error('Error sending update to server:', error);
