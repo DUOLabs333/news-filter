@@ -16,23 +16,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderHeadlines() {
         headlinesContainer.innerHTML = ''; // Clear existing headlines
 
-        const filteredHeadlines = headlines.filter(headline => {
-            if (currentTab === 'all') {
-                return true; // Show all headlines, including those with null status
-            } else if (currentTab === 'liked') {
-                return headline.status === 1; // Show liked (status 1)
-            } else if (currentTab === 'disliked') {
-                return headline.status === 0; // Show disliked (status 0)
-            }
-            return false; // Should not happen if currentTab is one of the three
-        });
-
-        if (filteredHeadlines.length === 0) {
+        // No client-side filtering needed here, as the backend will provide filtered data
+        // based on the fetch call.
+        if (headlines.length === 0) {
             headlinesContainer.innerHTML = '<p>No headlines in this category yet.</p>';
             return;
         }
 
-        filteredHeadlines.forEach(headline => {
+        headlines.forEach(headline => {
             const headlineItem = document.createElement('div');
             headlineItem.classList.add('headline-item');
             headlineItem.dataset.id = headline.id; // Add data-id for swipe handling
@@ -41,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let dislikeClass = '';
             let likeClass = '';
 
+            // The backend will now explicitly add 'status' to all returned headlines
             if (headline.status === 0) { // Disliked
                 dislikeClass = 'dislike';
             } else if (headline.status === 1) { // Liked
@@ -65,33 +57,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to handle like/dislike actions
     async function handleAction(id, action) { // action will be 0 or 1 (integer)
-        const newStatus = action; // Already an integer
+        const endpoint = action === 1 ? `/api/headlines/${id}/like` : `/api/headlines/${id}/dislike`;
+
+        // Optimistically update UI first: remove the headline from the current client-side list
         const headlineIndex = headlines.findIndex(h => h.id === id);
         if (headlineIndex > -1) {
-            // Update the status of the headline locally first for immediate visual feedback
-            headlines[headlineIndex].status = newStatus;
-            renderHeadlines(); // Re-render headlines to reflect the change immediately
+            headlines.splice(headlineIndex, 1);
+            renderHeadlines(); // Re-render to show immediate removal
+        }
 
-            // Now, send this update to the server for persistence
-            try {
-                const response = await fetch(`/api/headlines/${id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ status: newStatus }), // Send integer status
-                });
+        try {
+            const response = await fetch(endpoint, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                // No body needed as action is in URL
+            });
 
-                if (!response.ok) {
-                    // If server update fails, log an error.
-                    // In a more robust app, you might revert the local change or show a user-facing error.
-                    console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
-                } else {
-                    console.log(`Headline ${id} status updated to ${newStatus} on server.`);
-                }
-            } catch (error) {
-                console.error('Error sending update to server:', error);
+            if (!response.ok) {
+                console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
+                // If server update fails, re-fetch to revert UI to actual state
+                fetchHeadlinesForCurrentTab();
+            } else {
+                console.log(`Headline ${id} moved to ${action === 1 ? 'liked' : 'disliked'} on server.`);
+                // After successful action, re-fetch headlines for the current tab
+                // to ensure the list is up-to-date and reflects the change.
+                fetchHeadlinesForCurrentTab();
             }
+        } catch (error) {
+            console.error('Error sending update to server:', error);
+            // If network error, re-fetch to revert UI to actual state
+            fetchHeadlinesForCurrentTab();
         }
     }
 
@@ -130,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         isSwiping = false; // Reset swipe flag
         activeHeadlineItem = event.currentTarget;
-        startX = event.clientX || event.touches[0].clientX; // For mouse or touch
+        startX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : event.clientX); // For mouse or touch
         activeHeadlineItem.style.transition = 'none'; // Disable transition during swipe
 
         document.addEventListener('pointermove', handlePointerMove);
@@ -141,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePointerMove(event) {
         if (!activeHeadlineItem) return;
 
-        const currentX = event.clientX || event.touches[0].clientX;
+        const currentX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : event.clientX);
         currentTranslate = currentX - startX;
 
         // Only consider it a swipe if horizontal movement is significant
@@ -185,6 +182,31 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTranslate = 0;
     }
 
+    // New function to fetch headlines based on current tab
+    async function fetchHeadlinesForCurrentTab() {
+        let fetchUrl = '';
+        if (currentTab === 'all') {
+            fetchUrl = '/api/headlines/all';
+        } else if (currentTab === 'liked') {
+            fetchUrl = '/api/headlines/liked';
+        } else if (currentTab === 'disliked') {
+            fetchUrl = '/api/headlines/disliked';
+        }
+
+        try {
+            const response = await fetch(fetchUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            headlines = data; // Update global headlines array
+            renderHeadlines(); // Re-render with new data
+        } catch (error) {
+            console.error('Error fetching headlines:', error);
+            headlinesContainer.innerHTML = '<p>Failed to load headlines. Please try again later.</p>';
+        }
+    }
+
     // Event listeners for tab buttons
     tabButtons.forEach(button => {
         button.addEventListener('click', (event) => {
@@ -196,24 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Update current tab and re-render
             currentTab = event.target.dataset.tab;
-            renderHeadlines();
+            fetchHeadlinesForCurrentTab(); // Fetch new data when tab changes
         });
     });
 
-    // Fetch headlines from Flask API endpoint
-    fetch('/api/headlines')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            headlines = data; // Assign fetched data to headlines array
-            renderHeadlines(); // Initial render after data is loaded
-        })
-        .catch(error => {
-            console.error('Error fetching headlines:', error);
-            headlinesContainer.innerHTML = '<p>Failed to load headlines. Please try again later.</p>';
-        });
+    // Initial fetch when DOM is loaded
+    fetchHeadlinesForCurrentTab();
 });
