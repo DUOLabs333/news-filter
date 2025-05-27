@@ -10,6 +10,8 @@ Function to write api results to headlines files with classification. Cached for
 Liked and disliked tabs retrieve based on classification
 
 all_headlines should be sorted, so swiping doesn't change the final result.
+
+id should be {domain}-{id}
 """
 
 def write_file(data, path):
@@ -85,7 +87,7 @@ def action(id, action):
     if action=="dislike":
         dst=disliked
     else:
-        dst="liked"
+        dst=liked
 
     dst[id]=src[id]
     dst[id]["status"]=status
@@ -95,6 +97,8 @@ def action(id, action):
     
     if not(src is dst):
         save_all_files()
+
+    return '', 200
 
 unsorted = read_file(UNSORTED_FILE)
 liked = read_file(LIKED_FILE)

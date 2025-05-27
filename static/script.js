@@ -26,38 +26,39 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        headlines.forEach(headline => {
-            const headlineItem = document.createElement('div');
-            headlineItem.classList.add('headline-item');
-            headlineItem.dataset.id = headline.id; // Add data-id for swipe handling
+	for (const id in headlines){
+		headline=headlines[id];
+		const headlineItem = document.createElement('div');
+	    	headlineItem.classList.add('headline-item');
+	    	headlineItem.dataset.id = id; // Add data-id for swipe handling
 
-            // Determine classes for buttons based on headline status
-            let dislikeClass = '';
-            let likeClass = '';
+		// Determine classes for buttons based on headline status
+		let dislikeClass = '';
+		let likeClass = '';
 
-            // The backend will now explicitly add 'status' to all returned headlines
-            if (headline.status === 0) { // Disliked
-                dislikeClass = 'dislike';
-            } else if (headline.status === 1) { // Liked
-                likeClass = 'like';
-            }
+	    	// The backend will now explicitly add 'status' to all returned headlines
+	    	if (headline.status === 0) { // Disliked
+			dislikeClass = 'dislike';
+		} else if (headline.status === 1) { // Liked
+			likeClass = 'like';
+		}
 
-            // New HTML structure for swipe feedback
-            headlineItem.innerHTML = `
-                <div class="swipe-background">
-                    <span class="swipe-icon swipe-icon-left">&#10003;</span>
-                    <span class="swipe-icon swipe-icon-right">X</span>
-                </div>
-                <div class="headline-content">
-                    <div class="action-buttons">
-                        <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="dislike">X</button>
-                        <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="like">&#10003;</button>
-                    </div>
-                    <a href="${headline.url}" target="_blank">${headline.title}</a>
-                </div>
-            `;
-            headlinesContainer.appendChild(headlineItem);
-        });
+	    // New HTML structure for swipe feedback
+	    headlineItem.innerHTML = `
+		<div class="swipe-background">
+		    <span class="swipe-icon swipe-icon-left">&#10003;</span>
+		    <span class="swipe-icon swipe-icon-right">X</span>
+		</div>
+		<div class="headline-content">
+		    <div class="action-buttons">
+			<button class="action-button ${dislikeClass}" data-id="${id}" data-action="dislike">X</button>
+			<button class="action-button ${likeClass}" data-id="${id}" data-action="like">&#10003;</button>
+		    </div>
+		    <a href="${headline.url}" target="_blank">${headline.title}</a>
+		</div>
+	    `;
+	    headlinesContainer.appendChild(headlineItem);
+	}
 
         // Add event listeners to the new buttons
         addActionButtonListeners();
@@ -66,16 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Function to handle like/dislike actions
-    async function handleAction(key, action) { // action will be 0 or 1 (integer)
-        const endpoint = action === 1 ? `/api/headlines/${id}/like` : `/api/headlines/${id}/dislike`;
-
+    async function handleAction(id, action) { // action will be 0 or 1 (integer)
         // Optimistically update UI first: remove the headline from the current client-side list
 
-	if (headlines.delete(key)){
+		if (currentTab!= "all"){
+			delete headlines[id];
+		}
 		renderHeadlines(); //Re-render to show immediate removal
 
 		try {
-		    const response = await fetch(`/api/headlines/${key}/${action}`, {
+		    const response = await fetch(`/api/headlines/${id}/${action}`, {
 			method: 'GET',
 			headers: {
 			    'Content-Type': 'application/json',
@@ -87,17 +88,16 @@ document.addEventListener('DOMContentLoaded', () => {
 			// If server update fails, re-fetch to revert UI to actual state
 			fetchHeadlinesForCurrentTab();
 		    } else {
-			console.log(`Headline ${id} moved to ${action === 1 ? 'liked' : 'disliked'} on server.`);
+			console.log(`Headline ${id} moved to ${action} on server.`);
 			// After successful action, re-fetch headlines for the current tab
 			// to ensure the list is up-to-date and reflects the change.
-			fetchHeadlinesForCurrentTab();
+			//fetchHeadlinesForCurrentTab();
 		    }
 		} catch (error) {
 		    console.error('Error sending update to server:', error);
 		    // If network error, re-fetch to revert UI to actual state
 		    fetchHeadlinesForCurrentTab();
 		}
-	}
     }
 
     // Function to attach event listeners to action buttons
@@ -218,6 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
+
             headlines = data; // Update global headlines array
             renderHeadlines(); // Re-render with new data
         } catch (error) {
