@@ -64,6 +64,10 @@ h1 {
     margin-bottom: 10px;
     padding: 10px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    /* Add transition for smooth swipe reset */
+    transition: transform 0.3s ease-out;
+    /* Allow vertical scrolling, but prevent default for horizontal */
+    touch-action: pan-y;
 }
 
 .headline-item a {
