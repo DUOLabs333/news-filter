@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 6, title: 'My Journey into Open Source', url: 'https://example.com/open-source', status: 'all' },
     ];
 
-    let currentTab = 'all'; // Default active tab
+    let currentTab = 'liked'; // Default active tab, updated to match HTML
 
     // Function to render headlines based on the current tab
     function renderHeadlines() {
