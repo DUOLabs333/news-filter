@@ -71,7 +71,7 @@ h1 {
 }
 
 .headline-item a {
-    flex-grow: 1;
+    /* Removed flex-grow: 1; to constrain link hitbox to text */
     text-decoration: none;
     color: #007bff;
     font-size: 18px;
