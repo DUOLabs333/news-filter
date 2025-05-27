@@ -1,15 +1,14 @@
 body {
     font-family: Arial, sans-serif;
     margin: 0 auto; /* Center the body content */
-    padding: 20px;
+    padding: 0px;
     background-color: #f4f4f4;
     color: #333;
-    max-width: 1000px; /* New max-width for the entire app */
 }
 
 .container {
     background-color: #fff;
-    padding: 20px;
+    padding: 0px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -33,7 +32,7 @@ h1 {
     padding: 10px 20px;
     cursor: pointer;
     font-size: 16px;
-    border-radius: 5px 5px 0 0;
+    border-radius: 0px;
     transition: background-color 0.3s ease;
     /* Removed margin: 0 2px; */
     flex: 1; /* Make buttons grow to fill available space */
