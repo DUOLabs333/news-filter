@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hacker News Filter</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Hacker News Headlines</h1>
+
+        <div class="tabs">
+            <button class="tab-button active" data-tab="all">All</button>
+            <button class="tab-button" data-tab="liked">Liked</button>
+            <button class="tab-button" data-tab="disliked">Disliked</button>
+        </div>
+
+        <div id="headlines-container" class="headlines-list">
+            <!-- Headlines will be rendered here by JavaScript -->
+        </div>
+    </div>
+
+    <script src="script.js" defer></script>
+</body>
+</html>
