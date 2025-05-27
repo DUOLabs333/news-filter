@@ -10,7 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let startX = 0;
     let currentTranslate = 0;
     let activeHeadlineItem = null;
-    const SWIPE_THRESHOLD_PERCENTAGE = 0.2; // 30% of page width
+    let activeHeadlineContent = null; // New: Reference to the content div
+    let activeSwipeBackground = null; // New: Reference to the swipe background div
+    const SWIPE_THRESHOLD_PERCENTAGE = 0.2; // 20% of page width for action
+    const SWIPE_VISUAL_THRESHOLD_PX = 50; // Pixels to show visual feedback
 
     // Function to render headlines based on the current tab
     function renderHeadlines() {
@@ -39,12 +42,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 likeClass = 'like';
             }
 
+            // New HTML structure for swipe feedback
             headlineItem.innerHTML = `
-                <div class="action-buttons">
-                    <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="0">X</button>
-                    <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="1">&#10003;</button>
+                <div class="swipe-background">
+                    <span class="swipe-icon swipe-icon-left">&#10003;</span>
+                    <span class="swipe-icon swipe-icon-right">X</span>
                 </div>
-                <a href="${headline.url}" target="_blank">${headline.title}</a>
+                <div class="headline-content">
+                    <div class="action-buttons">
+                        <button class="action-button ${dislikeClass}" data-id="${headline.id}" data-action="0">X</button>
+                        <button class="action-button ${likeClass}" data-id="${headline.id}" data-action="1">&#10003;</button>
+                    </div>
+                    <a href="${headline.url}" target="_blank">${headline.title}</a>
+                </div>
             `;
             headlinesContainer.appendChild(headlineItem);
         });
@@ -127,8 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         isSwiping = false; // Reset swipe flag
         activeHeadlineItem = event.currentTarget;
+        activeHeadlineContent = activeHeadlineItem.querySelector('.headline-content');
+        activeSwipeBackground = activeHeadlineItem.querySelector('.swipe-background');
+
         startX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : event.clientX); // For mouse or touch
-        activeHeadlineItem.style.transition = 'none'; // Disable transition during swipe
+        activeHeadlineContent.style.transition = 'none'; // Disable transition during swipe
 
         document.addEventListener('pointermove', handlePointerMove);
         document.addEventListener('pointerup', handlePointerUp);
@@ -136,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePointerMove(event) {
-        if (!activeHeadlineItem) return;
+        if (!activeHeadlineItem || !activeHeadlineContent || !activeSwipeBackground) return;
 
         const currentX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : event.clientX);
         currentTranslate = currentX - startX;
@@ -146,15 +159,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Math.abs(currentTranslate) > 5) { // Small threshold to differentiate from a tap
             isSwiping = true;
             event.preventDefault(); // Prevent scrolling
-            activeHeadlineItem.style.transform = `translateX(${currentTranslate}px)`;
+            activeHeadlineContent.style.transform = `translateX(${currentTranslate}px)`;
+
+            // Visual feedback logic
+            if (Math.abs(currentTranslate) > SWIPE_VISUAL_THRESHOLD_PX) {
+                if (currentTranslate > 0) { // Swiping right
+                    activeSwipeBackground.classList.add('like');
+                    activeSwipeBackground.classList.remove('dislike');
+                } else { // Swiping left
+                    activeSwipeBackground.classList.add('dislike');
+                    activeSwipeBackground.classList.remove('like');
+                }
+            } else {
+                // If swipe is not significant enough for visual feedback, reset
+                activeSwipeBackground.classList.remove('like', 'dislike');
+            }
         }
     }
 
     function handlePointerUp(event) {
-        if (!activeHeadlineItem) return;
+        if (!activeHeadlineItem || !activeHeadlineContent || !activeSwipeBackground) return;
 
-        activeHeadlineItem.style.transition = 'transform 0.3s ease-out'; // Re-enable transition
-        activeHeadlineItem.style.transform = 'translateX(0)'; // Reset position
+        activeHeadlineContent.style.transition = 'transform 0.3s ease-out'; // Re-enable transition
+        activeHeadlineContent.style.transform = 'translateX(0)'; // Reset position
+
+        // Reset swipe background classes
+        activeSwipeBackground.classList.remove('like', 'dislike');
 
         document.removeEventListener('pointermove', handlePointerMove);
         document.removeEventListener('pointerup', handlePointerUp);
@@ -178,6 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         activeHeadlineItem = null;
+        activeHeadlineContent = null;
+        activeSwipeBackground = null;
         startX = 0;
         currentTranslate = 0;
     }

@@ -56,19 +56,75 @@ h1 {
 }
 
 .headline-item {
-    display: flex;
-    align-items: center;
-    background-color: #fff;
+    position: relative; /* Needed for absolute positioning of swipe-background */
+    overflow: hidden; /* Hide content that slides out of view */
     border: 1px solid #ddd;
     border-radius: 5px;
     margin-bottom: 10px;
-    padding: 10px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    /* Add transition for smooth swipe reset */
-    transition: transform 0.3s ease-out;
-    /* Allow vertical scrolling, but prevent default for horizontal */
+    /* No padding or box-shadow here, they move to .headline-content */
     touch-action: pan-y;
     cursor: pointer; /* Added: Change cursor to pointer on hover */
+}
+
+.headline-content {
+    display: flex;
+    align-items: center;
+    background-color: #fff; /* Ensure content has its own background */
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 1; /* Above the swipe background */
+    transition: transform 0.3s ease-out; /* Keep transition for reset */
+    padding: 10px; /* Apply padding here */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* Apply box-shadow here */
+    box-sizing: border-box; /* Include padding in width/height */
+}
+
+/* New styles for swipe background */
+.swipe-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center; /* Center icon vertically */
+    z-index: 0; /* Behind headline-content */
+    transition: background-color 0.3s ease; /* Smooth color change */
+    border-radius: 5px; /* Match headline-item border-radius */
+}
+
+.swipe-background.like {
+    background-color: #28a745; /* Green */
+}
+
+.swipe-background.dislike {
+    background-color: #dc3545; /* Red */
+}
+
+.swipe-icon {
+    font-size: 40px;
+    color: white;
+    opacity: 0; /* Hidden by default */
+    transition: opacity 0.3s ease;
+    position: absolute; /* Position relative to swipe-background */
+}
+
+.swipe-icon-left {
+    left: 20px; /* Position from left edge */
+}
+
+.swipe-icon-right {
+    right: 20px; /* Position from right edge */
+}
+
+/* Show icons based on swipe direction */
+.swipe-background.like .swipe-icon-left {
+    opacity: 1;
+}
+
+.swipe-background.dislike .swipe-icon-right {
+    opacity: 1;
 }
 
 .headline-item a {
