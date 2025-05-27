@@ -2,17 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const headlinesContainer = document.getElementById('headlines-container');
     const tabButtons = document.querySelectorAll('.tab-button');
 
-    // Dummy data for Hacker News headlines
-    // In a real app, you'd fetch this from an API
-    let headlines = [
-        { id: 1, title: 'The Future of WebAssembly', url: 'https://example.com/wasm', status: 'liked' },
-        { id: 2, title: 'Building a SPA with Vanilla JS', url: 'https://example.com/vanilla-js', status: 'disliked' },
-        { id: 3, title: 'Why Rust is Gaining Popularity', url: 'https://example.com/rust', status: 'all' },
-        { id: 4, title: 'Understanding Async/Await in JavaScript', url: 'https://example.com/async-await', status: 'all' },
-        { id: 5, title: 'A Deep Dive into CSS Grid', url: 'https://example.com/css-grid', status: 'all' },
-        { id: 6, title: 'My Journey into Open Source', url: 'https://example.com/open-source', status: 'all' },
-    ];
-
+    let headlines = []; // Initialize as empty, will be populated by fetch
     let currentTab = 'liked'; // Default active tab, updated to match HTML
 
     // Function to render headlines based on the current tab
@@ -67,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
             headlines[headlineIndex].status = action;
             // Re-render headlines to reflect the change
             renderHeadlines();
+            // TODO: In a real app, you'd send this update to the server
         }
     }
 
@@ -96,6 +87,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Initial render when the page loads
-    renderHeadlines();
+    // Fetch headlines from Flask API endpoint
+    fetch('/api/headlines') // Changed URL to Flask endpoint
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            headlines = data; // Assign fetched data to headlines array
+            renderHeadlines(); // Initial render after data is loaded
+        })
+        .catch(error => {
+            console.error('Error fetching headlines:', error);
+            headlinesContainer.innerHTML = '<p>Failed to load headlines. Please try again later.</p>';
+        });
 });
