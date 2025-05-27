@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let startX = 0;
     let currentTranslate = 0;
     let activeHeadlineItem = null;
-    const SWIPE_THRESHOLD_PERCENTAGE = 0.3; // 30% of page width
+    const SWIPE_THRESHOLD_PERCENTAGE = 0.2; // 30% of page width
 
     // Function to render headlines based on the current tab
     function renderHeadlines() {

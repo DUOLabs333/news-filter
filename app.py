@@ -4,6 +4,14 @@ import os
 
 app = Flask(__name__)
 
+"""
+IMPORTANT NOTES (do not touch):
+Function to write api results to headlines files with classification. Cached for 3 hours
+
+Liked and disliked tabs retrieve based on classification
+
+all_headlines should be sorted, so swiping doesn't change the final result.
+"""
 # Define the paths to the headline files
 HEADLINES_FILE = 'headlines.json'
 LIKED_HEADLINES_FILE = 'liked.json'
