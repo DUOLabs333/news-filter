@@ -22,7 +22,7 @@ h1 {
 
 .tabs {
     display: flex;
-    justify-content: center;
+    /* Removed justify-content: center; to allow tabs to span full width */
     margin-bottom: 20px;
     border-bottom: 1px solid #eee;
 }
@@ -35,7 +35,9 @@ h1 {
     font-size: 16px;
     border-radius: 5px 5px 0 0;
     transition: background-color 0.3s ease;
-    margin: 0 2px;
+    /* Removed margin: 0 2px; */
+    flex: 1; /* Make buttons grow to fill available space */
+    text-align: center; /* Center text within the stretched buttons */
 }
 
 .tab-button:hover {
