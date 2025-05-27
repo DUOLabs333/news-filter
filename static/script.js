@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		let likeClass = '';
 
 	    	// The backend will now explicitly add 'status' to all returned headlines
+
 	    	if (headline.status === 0) { // Disliked
 			dislikeClass = 'dislike';
 		} else if (headline.status === 1) { // Liked
@@ -91,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			console.log(`Headline ${id} moved to ${action} on server.`);
 			// After successful action, re-fetch headlines for the current tab
 			// to ensure the list is up-to-date and reflects the change.
-			//fetchHeadlinesForCurrentTab();
+			fetchHeadlinesForCurrentTab();
 		    }
 		} catch (error) {
 		    console.error('Error sending update to server:', error);
@@ -194,10 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (swipeDistance > swipeThresholdPx) {
                 // Swiped right (liked)
-                handleAction(headlineId, 1);
+                handleAction(headlineId, "like");
             } else if (swipeDistance < -swipeThresholdPx) {
                 // Swiped left (disliked)
-                handleAction(headlineId, 0);
+                handleAction(headlineId, "dislike");
             }
             // Reset isSwiping flag after processing
             isSwiping = false;

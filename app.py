@@ -89,13 +89,12 @@ def action(id, action):
     else:
         dst=liked
 
-    dst[id]=src[id]
-    dst[id]["status"]=status
-    sort(dst)
-
-    del src[id]
-    
     if not(src is dst):
+        dst[id]=src[id]
+        dst[id]["status"]=status
+        sort(dst)
+        del src[id]
+        
         save_all_files()
 
     return '', 200
