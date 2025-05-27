@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Dummy data for Hacker News headlines
     // In a real app, you'd fetch this from an API
     let headlines = [
-        { id: 1, title: 'The Future of WebAssembly', url: 'https://example.com/wasm', status: 'all' },
-        { id: 2, title: 'Building a SPA with Vanilla JS', url: 'https://example.com/vanilla-js', status: 'all' },
+        { id: 1, title: 'The Future of WebAssembly', url: 'https://example.com/wasm', status: 'liked' },
+        { id: 2, title: 'Building a SPA with Vanilla JS', url: 'https://example.com/vanilla-js', status: 'disliked' },
         { id: 3, title: 'Why Rust is Gaining Popularity', url: 'https://example.com/rust', status: 'all' },
         { id: 4, title: 'Understanding Async/Await in JavaScript', url: 'https://example.com/async-await', status: 'all' },
         { id: 5, title: 'A Deep Dive into CSS Grid', url: 'https://example.com/css-grid', status: 'all' },
