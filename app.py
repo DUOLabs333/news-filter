@@ -1,6 +1,8 @@
-from flask import Flask, render_template, jsonify, request
-import os, signal, json, atexit
-import werkzeug
+from flask import Flask, render_template, jsonify
+import os, signal, json, atexit, threading, contextlib, datetime
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
 
 app = Flask(__name__)
 
@@ -34,7 +36,15 @@ def read_file(path):
             return {}
 
 def sort(d):
-    d_copy=dict(sorted(d.items(), reverse=True, key= lambda item: item[1]["time"]))
+    def custom_key(item):
+        domain=item[0]
+        if domain.startswith("lobsters-"): #There are much less Lobsters stories per day compared to HN, and they are usually much higher quality (higher SNR), so they should be ranked first
+            domain=1
+        elif domain.startswith("hn-"):
+            domain=0
+
+        return (domain, item[1]["time"])
+    d_copy=dict(sorted(d.items(), reverse=True, key= custom_key))
     d.clear()
     d.update(d_copy)
     
@@ -73,12 +83,13 @@ def action(id, action):
         dst=liked
 
     if not(src is dst):
-        dst[id]=src[id]
-        dst[id]["status"]=status
-        sort(dst)
-        del src[id]
-        
-        save_all_files()
+        with unsorted_lock if ((src is unsorted) or (dst is unsorted)) else contextlib.nullcontext():
+            dst[id]=src[id]
+            dst[id]["status"]=status
+            sort(dst)
+            del src[id]
+            
+            save_all_files()
 
     return '', 200
 
@@ -104,6 +115,47 @@ else:
     liked={}
     disliked={}
 
+    unsorted_lock=threading.Lock() #This is meant for periodic updates to the unsorted dictionary
+
     unsorted = read_file(UNSORTED_FILE)
     liked = read_file(LIKED_FILE)
     disliked = read_file(DISLIKED_FILE)
+
+    def update():
+        result_main={}
+        result_aux={}
+        hn_stories=requests.get("https://hacker-news.firebaseio.com/v0/topstories.json").json()
+        
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            while len(hn_stories)>0:
+                futures={pool.submit(lambda id: requests.get(f"https://hacker-news.firebaseio.com/v0/item/{id}.json")) for id in hn_stories}
+
+                hn_stories.clear()
+
+                for future in as_completed(futures):
+                    response=future.result()
+                    if response.status_code!=200:
+                        hn_stories.append(response.url)
+                    else:
+                        data=response.json()
+                        id=f"hn-{data['id']}"
+                        result_main[id]={"title": data["title"], "url": data.get("url", ""), "description": data.get("text", ""),  "tags": []}
+                        
+                        result_aux[id]={"post_url": f"https://news.ycombinator.com/item?id={data['id']}", "time": data["time"]}
+
+
+        lobsters_stories=requests.get("https://lobste.rs/hottest.json").json()
+
+        for story in lobsters_stories:
+            pass #Disable Lobste.rs integration for now --- hottest only returns the first page, when in fact, I want more than the first page
+
+            id=f"lobsters-{story['short_id']}"
+            result_main[id]={"title": story["title"], "url": story["url"], "description": story["description_plain"], "tags": story["tags"]} 
+
+            result_aux[id]={"post_url": story["short_id_url"], "time": int(datetime.datetime.fromisoformat(story["created_at"]).astimezone(datetime.UTC).timestamp())}
+
+
+
+        
+
+
