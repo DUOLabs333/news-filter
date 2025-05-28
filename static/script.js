@@ -86,19 +86,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		    if (!response.ok) {
 			console.error(`Failed to update headline ${id} on server: ${response.statusText}`);
-			// If server update fails, re-fetch to revert UI to actual state
-			fetchHeadlinesForCurrentTab();
 		    } else {
 			console.log(`Headline ${id} moved to ${action} on server.`);
-			// After successful action, re-fetch headlines for the current tab
-			// to ensure the list is up-to-date and reflects the change.
-			fetchHeadlinesForCurrentTab();
 		    }
 		} catch (error) {
 		    console.error('Error sending update to server:', error);
-		    // If network error, re-fetch to revert UI to actual state
-		    fetchHeadlinesForCurrentTab();
 		}
+
+		fetchHeadlinesForCurrentTab();
     }
 
     // Function to attach event listeners to action buttons

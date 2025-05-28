@@ -1,5 +1,5 @@
 from flask import Flask, render_template, jsonify, g
-import os, json, threading, datetime, sqlite3
+import os, json, threading, datetime, sqlite3, time
 from werkzeug.local import LocalProxy
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,10 +21,11 @@ id should be {domain}-{id}
 """
 
 DATABASE="db.db"
-TABLE="table"
+TABLE="main"
 
 HISTORY_LIMIT=5_000
 POOL_LIMIT=10
+TAB_LIMIT=10 #How many items can be shown on a tab at any one time
 GEMINI_MODEL="gemini-2.5-pro-preview-05-06"
 
 # Route for the home page
@@ -36,28 +37,25 @@ def index():
 # Add support for getting a specific limit and offset
 @app.route('/api/headlines/<tab_name>')
 def get_tab(tab_name):
-    offset=request.args.get("offset", 0)
-    limit=request.args.get("limit", 10)
-
     if tab_name == 'all':
         # Combine all, adding status for client-side filtering/display
         
-        query=f"sorted_at is not null"
+        query="sorted_at is not null"
         sort="sorted_at desc"
 
     else:
         query=f"sorted_at is null and category = {'0' if tab_name=="disliked" else '1'}"
         sort="""
             CASE
-                WHEN id LIKE 'lobsters-%' THEN 0
-                WHEN id LIKE 'hn-%' THEN 1
+                WHEN post_id LIKE 'lobsters-%' THEN 0
+                WHEN post_id LIKE 'hn-%' THEN 1
             END ASC,
             created_at DESC
             """
 
     result={}
 
-    for row in cur.execute(f"select post_id, category, title, post_url from {TABLE} where {query} order by {sort} limit {limit} offset {offset}"):
+    for row in cur.execute(f"select id, post_id, category, title, post_url from {TABLE} where {query} order by {sort} limit {TAB_LIMIT}"):
         row=dict(row)
         id=row.pop("post_id")
         result[id]=row
@@ -87,7 +85,9 @@ def get_cur():
             with cur_pool_lock:
                 cur=cur_pool.pop()
         except KeyError:
-            cur=sqlite3.connect(DATABASE, autocommit=True).cursor()
+            conn=sqlite3.connect(DATABASE, autocommit=True)
+            conn.row_factory = sqlite3.Row
+            cur=conn.cursor()
 
         g.cur=cur
     return cur
@@ -105,8 +105,8 @@ def teardown_cur(dummy):
 
 
 def update():
-    result_main={}
-    result_aux={}
+    result={}
+
     hn_stories=requests.get("https://hacker-news.firebaseio.com/v0/topstories.json").json()
     
     ids={f"hn-{id}": id for id in hn_stories}
@@ -136,9 +136,8 @@ def update():
                     data=response.json()
 
                     id=futures[future]
-                    result_main[id]={"title": data["title"], "url": data.get("url", ""), "description": data.get("text", ""),  "tags": []}
-                    
-                    result_aux[id]={"post_url": f"https://news.ycombinator.com/item?id={data['id']}", "created_at": data["time"]}
+                    result[id]={"title": data["title"], "url": data.get("url", ""), "description": data.get("text", ""),  "tags": [],
+                    "post_url": f"https://news.ycombinator.com/item?id={data['id']}", "created_at": data["time"]}
 
                     del hn_stories[id]
 
@@ -146,24 +145,23 @@ def update():
     lobsters_stories=requests.get("https://lobste.rs/hottest.json").json()
     ids=[]
     for story in lobsters_stories:
-        pass #Disable Lobste.rs integration for now --- hottest only returns the first page, when in fact, I want more than the first page
+        continue #Disable Lobste.rs integration for now --- hottest only returns the first page, when in fact, I want more than the first page
 
         id=f"lobsters-{story['short_id']}"
         ids.append(id)
 
-        result_main[id]={"title": story["title"], "url": story["url"], "description": story["description_plain"], "tags": story["tags"]} 
-
-        result_aux[id]={"post_url": story["short_id_url"], "created_at": int(datetime.datetime.fromisoformat(story["created_at"]).astimezone(datetime.UTC).timestamp())}
+        result[id]={"title": story["title"], "url": story["url"], "description": story["description_plain"], "tags": story["tags"],
+        "post_url": story["short_id_url"], "created_at": int(datetime.datetime.fromisoformat(story["created_at"]).astimezone(datetime.UTC).timestamp())
+        } 
 
     for id in cur.execute(query.format(placeholders=', '.join(['(?)'] * len(ids))), ids):
-        del result_main[id]
-        del result_aux[id]
+        del result[id]
 
 
     prompt="""
     * Instructions: Given below is a list of tuples --- for each tuple, the first part is the ID, while the second part is a dictionary of relevant information. These tuples need to be sorted into "Liked" and "Disliked" categories, based on the list of items in the "Previously Liked" and "Previously Disliked" categories, which are given below.
 
-    * Expected Output Form: Exactly two JSON lists separated by a newline --- nothing more, nothing less. The first list should contain the ids of the tuples that are categorized in the "Liked" column, and the second list should contain the ids of the tuples that are categorized in the "Disliked" column. Every id in the list of tuples should either be categorized as "Liked" or "Disliked".
+    * Expected Output Form: A JSON list of exactly two JSON sublists --- nothing more, nothing less. The first sublist should contain the ids of the tuples that are categorized in the "Liked" column, and the second sublist should contain the ids of the tuples that are categorized in the "Disliked" column. Every id in the list of tuples should either be categorized as "Liked" or "Disliked".
 
     * List of tuples: {tuples}
 
@@ -172,5 +170,48 @@ def update():
     * Previously Disliked: {disliked}
     """
     
-    content=requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent", params={"key": config["GEMINI_API_KEY"]}, json={"contents": [{"parts":[{"text": prompt.format(tuples=list(result_main.items()), liked=
+    main_cols=["title", "url", "description", "tags"]
+
+    select_query=f"select {' , '.join(main_cols)} in {TABLE} where category = ?"
+
+    while len(result)>0:
+
+        content=requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent", params={"key": config["GEMINI_API_KEY"]}, json={"contents": 
+        [
+            {
+                "parts":
+                    [
+                        {
+                            "text": prompt.format(
+                                            tuples=
+                                                {id: {col: result[id][col] for col in main_cols} for id in result}.items(), liked=[dict(row) for row in cur.execute(select_query, 1)], disliked=[dict(row) for row in cur.execute(select_query, 0)])}]}]}).text
+
+        print(content)
+
+        liked, disliked=json.loads(content)
+
+        inserted=[]
+        
+        for lst, category in [(liked, 1), (disliked, 0)]:
+            for id in lst:
+                row=result.get(id, None)
+                if row:
+                    row["post_id"]=id
+                    row["category"]=category
+                    inserted.append(row)
+                    del result[id]
+        if len(inserted)>0:
+            cur.executemany(f"insert into {TABLE} values ({",".join([":"+col for col in inserted[0].keys()])})", inserted)
+        
+       
+if not os.environ.get("RELOEADER_HAS_RUN"): #Environment guard --- otherwise, the exit handlers will be set for both the reloader process and the actual application process, leading to files bein g overwritten twice.
+    os.environ["RELOEADER_HAS_RUN"]="1"
+else:   
+    def update_loop():
+        while True:
+            update()
+            time.sleep(1*60*60)
+
+    threading.Thread(target=update_loop).start()
+        
 
