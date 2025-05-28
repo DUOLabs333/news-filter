@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request
 import os, signal, json, atexit
+import werkzeug
 
 app = Flask(__name__)
 
@@ -17,31 +18,13 @@ id should be {domain}-{id}
 def write_file(data, path):
     with open(path+'1', 'w+') as f:
         json.dump(data, f, indent=4)
-    os.rename(path+'1', path)
+    os.replace(path+'1', path)
 
-unsorted={}
-liked={}
-disliked={}
 
 def save_all_files():
     write_file(unsorted, UNSORTED_FILE)
     write_file(liked, LIKED_FILE)
     write_file(disliked, DISLIKED_FILE)
-
-signal_handlers={}
-
-for signum in [signal.SIGTERM, signal.SIGINT]:
-    def handler(signum, dummy):
-        save_all_files()
-        signal.signal(signum, signal_handlers[signum])
-        signal.raise_signal(signum)
-    signal_handlers[signum]=signal.signal(signum, handler)
-
-atexit.register(save_all_files)
-
-UNSORTED_FILE = 'unsorted.json'
-LIKED_FILE = 'liked.json'
-DISLIKED_FILE = 'disliked.json'
 
 def read_file(path):
     with open(path, 'r+') as f:
@@ -99,6 +82,28 @@ def action(id, action):
 
     return '', 200
 
-unsorted = read_file(UNSORTED_FILE)
-liked = read_file(LIKED_FILE)
-disliked = read_file(DISLIKED_FILE)
+if not os.environ.get("RELOADER_HAS_RUN"): #Otherwise, the exit handlers will be set for both the reloader process and the actual application process, leading to files being overwritten twice.
+    os.environ["RELOADER_HAS_RUN"]="1"
+else:
+    signal_handlers={}
+
+    for signum in [signal.SIGTERM, signal.SIGINT]:
+        def handler(signum, dummy):
+            save_all_files()
+            signal.signal(signum, signal_handlers[signum])
+            signal.raise_signal(signum)
+        signal_handlers[signum]=signal.signal(signum, handler)
+
+    atexit.register(save_all_files)
+
+    UNSORTED_FILE = 'unsorted.json'
+    LIKED_FILE = 'liked.json'
+    DISLIKED_FILE = 'disliked.json'
+
+    unsorted={}
+    liked={}
+    disliked={}
+
+    unsorted = read_file(UNSORTED_FILE)
+    liked = read_file(LIKED_FILE)
+    disliked = read_file(DISLIKED_FILE)
