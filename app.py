@@ -1,10 +1,13 @@
-from flask import Flask, render_template, jsonify
-import os, signal, json, atexit, threading, contextlib, datetime
+from flask import Flask, render_template, jsonify, g
+import os, json, threading, datetime, sqlite3
+from werkzeug.local import LocalProxy
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
+import requests, dotenv
 
 app = Flask(__name__)
+
+config=dotenv.dotenv_values()
 
 """
 IMPORTANT NOTES (do not touch):
@@ -17,145 +20,157 @@ all_headlines should be sorted, so swiping doesn't change the final result.
 id should be {domain}-{id}
 """
 
-def write_file(data, path):
-    with open(path+'1', 'w+') as f:
-        json.dump(data, f, indent=4)
-    os.replace(path+'1', path)
+DATABASE="db.db"
+TABLE="table"
 
+HISTORY_LIMIT=5_000
+POOL_LIMIT=10
+GEMINI_MODEL="gemini-2.5-pro-preview-05-06"
 
-def save_all_files():
-    write_file(unsorted, UNSORTED_FILE)
-    write_file(liked, LIKED_FILE)
-    write_file(disliked, DISLIKED_FILE)
-
-def read_file(path):
-    with open(path, 'r+') as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-
-def sort(d):
-    def custom_key(item):
-        domain=item[0]
-        if domain.startswith("lobsters-"): #There are much less Lobsters stories per day compared to HN, and they are usually much higher quality (higher SNR), so they should be ranked first
-            domain=1
-        elif domain.startswith("hn-"):
-            domain=0
-
-        return (domain, item[1]["time"])
-    d_copy=dict(sorted(d.items(), reverse=True, key= custom_key))
-    d.clear()
-    d.update(d_copy)
-    
 # Route for the home page
 @app.route('/')
 def index():
     return render_template('index.html')
 
 # API endpoint to get headlines for a specific tab
+# Add support for getting a specific limit and offset
 @app.route('/api/headlines/<tab_name>')
 def get_tab(tab_name):
+    offset=request.args.get("offset", 0)
+    limit=request.args.get("limit", 10)
+
     if tab_name == 'all':
         # Combine all, adding status for client-side filtering/display
-        combined=liked|disliked
-        sort(combined)
-        return jsonify(combined)
-    else:
-        return jsonify(dict(filter(lambda item: item[1]["status"]==(0 if tab_name=="disliked" else 1), unsorted.items())))
+        
+        query=f"sorted_at is not null"
+        sort="sorted_at desc"
 
-# API endpoint to like a headline
+    else:
+        query=f"sorted_at is null and category = {'0' if tab_name=="disliked" else '1'}"
+        sort="""
+            CASE
+                WHEN id LIKE 'lobsters-%' THEN 0
+                WHEN id LIKE 'hn-%' THEN 1
+            END ASC,
+            created_at DESC
+            """
+
+    result={}
+
+    for row in cur.execute(f"select post_id, category, title, post_url from {TABLE} where {query} order by {sort} limit {limit} offset {offset}"):
+        row=dict(row)
+        id=row.pop("post_id")
+        result[id]=row
+    return jsonify(result)
+
+# API endpoint to like/dislike a headline
 @app.route('/api/headlines/<id>/<action>', methods=['GET'])
 def action(id, action):
 
-    status=(0 if action=="dislike" else 1)
+    category=(0 if action=="dislike" else 1)
 
-    if unsorted.get(id):
-        src=unsorted
-    elif liked.get(id):
-        src=liked
-    else:
-        src=disliked
-
-    if action=="dislike":
-        dst=disliked
-    else:
-        dst=liked
-
-    if not(src is dst):
-        with unsorted_lock if ((src is unsorted) or (dst is unsorted)) else contextlib.nullcontext():
-            dst[id]=src[id]
-            dst[id]["status"]=status
-            sort(dst)
-            del src[id]
-            
-            save_all_files()
+    cur.execute(f"update {TABLE} set category={category}, sorted_at=coalesce( sorted_at, {int(datetime.datetime.today().astimezone(datetime.UTC).timestamp())}) where post_id={id}") # Only want to update sorted_at if it has not already been set
+    
+    for i in range(2):
+        cur.execute(f"with deleted as (select * from {TABLE} where (sorted_at is not null) and (category={category}) order by sorted_at desc offset {HISTORY_LIMIT}) delete from deleted") #Keep only the most recently sorted
 
     return '', 200
 
-if not os.environ.get("RELOADER_HAS_RUN"): #Otherwise, the exit handlers will be set for both the reloader process and the actual application process, leading to files being overwritten twice.
-    os.environ["RELOADER_HAS_RUN"]="1"
-else:
-    signal_handlers={}
+cur_pool_lock=threading.Lock()
+cur_pool=set()
 
-    for signum in [signal.SIGTERM, signal.SIGINT]:
-        def handler(signum, dummy):
-            save_all_files()
-            signal.signal(signum, signal_handlers[signum])
-            signal.raise_signal(signum)
-        signal_handlers[signum]=signal.signal(signum, handler)
+def get_cur():
+    cur=getattr(g, "cur", None)
 
-    atexit.register(save_all_files)
+    if cur is None:
+        try:
+            with cur_pool_lock:
+                cur=cur_pool.pop()
+        except KeyError:
+            cur=sqlite3.connect(DATABASE, autocommit=True).cursor()
 
-    UNSORTED_FILE = 'unsorted.json'
-    LIKED_FILE = 'liked.json'
-    DISLIKED_FILE = 'disliked.json'
+        g.cur=cur
+    return cur
 
-    unsorted={}
-    liked={}
-    disliked={}
+cur=LocalProxy(get_cur)
 
-    unsorted_lock=threading.Lock() #This is meant for periodic updates to the unsorted dictionary
+@app.teardown_appcontext
+def teardown_cur(dummy):
+    cur=g.pop("cur")
+    with cur_pool_lock:
+        if len(cur_pool)<POOL_LIMIT:
+            cur_pool.add(cur)
+        else:
+            cur.conn.close()
 
-    unsorted = read_file(UNSORTED_FILE)
-    liked = read_file(LIKED_FILE)
-    disliked = read_file(DISLIKED_FILE)
 
-    def update():
-        result_main={}
-        result_aux={}
-        hn_stories=requests.get("https://hacker-news.firebaseio.com/v0/topstories.json").json()
+def update():
+    result_main={}
+    result_aux={}
+    hn_stories=requests.get("https://hacker-news.firebaseio.com/v0/topstories.json").json()
+    
+    ids={f"hn-{id}": id for id in hn_stories}
+
+    query=f"""
+    with ids (id) as (
+    values {{placeholders}}
+    )
+    select ids.id
+    from ids
+    inner join {TABLE} t on ids.id=t.id;
+    """
+    
+    #Check if ids are already in database, to filter out superfluous requests
+    
+    for id in cur.execute(query.format(placeholders=', '.join(['(?)'] * len(hn_stories))), hn_stories.keys()):
+        del hn_stories[id]
         
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            while len(hn_stories)>0:
-                futures={pool.submit(lambda id: requests.get(f"https://hacker-news.firebaseio.com/v0/item/{id}.json")) for id in hn_stories}
+    
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        while len(hn_stories)>0:
+            futures={pool.submit(lambda id: requests.get(f"https://hacker-news.firebaseio.com/v0/item/{val}.json")):key for key, val in hn_stories.items()}
 
-                hn_stories.clear()
+            for future in as_completed(futures):
+                response=future.result()
+                if response.status_code==200:
+                    data=response.json()
 
-                for future in as_completed(futures):
-                    response=future.result()
-                    if response.status_code!=200:
-                        hn_stories.append(response.url)
-                    else:
-                        data=response.json()
-                        id=f"hn-{data['id']}"
-                        result_main[id]={"title": data["title"], "url": data.get("url", ""), "description": data.get("text", ""),  "tags": []}
-                        
-                        result_aux[id]={"post_url": f"https://news.ycombinator.com/item?id={data['id']}", "time": data["time"]}
+                    id=futures[future]
+                    result_main[id]={"title": data["title"], "url": data.get("url", ""), "description": data.get("text", ""),  "tags": []}
+                    
+                    result_aux[id]={"post_url": f"https://news.ycombinator.com/item?id={data['id']}", "created_at": data["time"]}
 
-
-        lobsters_stories=requests.get("https://lobste.rs/hottest.json").json()
-
-        for story in lobsters_stories:
-            pass #Disable Lobste.rs integration for now --- hottest only returns the first page, when in fact, I want more than the first page
-
-            id=f"lobsters-{story['short_id']}"
-            result_main[id]={"title": story["title"], "url": story["url"], "description": story["description_plain"], "tags": story["tags"]} 
-
-            result_aux[id]={"post_url": story["short_id_url"], "time": int(datetime.datetime.fromisoformat(story["created_at"]).astimezone(datetime.UTC).timestamp())}
+                    del hn_stories[id]
 
 
+    lobsters_stories=requests.get("https://lobste.rs/hottest.json").json()
+    ids=[]
+    for story in lobsters_stories:
+        pass #Disable Lobste.rs integration for now --- hottest only returns the first page, when in fact, I want more than the first page
 
-        
+        id=f"lobsters-{story['short_id']}"
+        ids.append(id)
 
+        result_main[id]={"title": story["title"], "url": story["url"], "description": story["description_plain"], "tags": story["tags"]} 
+
+        result_aux[id]={"post_url": story["short_id_url"], "created_at": int(datetime.datetime.fromisoformat(story["created_at"]).astimezone(datetime.UTC).timestamp())}
+
+    for id in cur.execute(query.format(placeholders=', '.join(['(?)'] * len(ids))), ids):
+        del result_main[id]
+        del result_aux[id]
+
+
+    prompt="""
+    * Instructions: Given below is a list of tuples --- for each tuple, the first part is the ID, while the second part is a dictionary of relevant information. These tuples need to be sorted into "Liked" and "Disliked" categories, based on the list of items in the "Previously Liked" and "Previously Disliked" categories, which are given below.
+
+    * Expected Output Form: Exactly two JSON lists separated by a newline --- nothing more, nothing less. The first list should contain the ids of the tuples that are categorized in the "Liked" column, and the second list should contain the ids of the tuples that are categorized in the "Disliked" column. Every id in the list of tuples should either be categorized as "Liked" or "Disliked".
+
+    * List of tuples: {tuples}
+
+    * Previously Liked: {liked}
+
+    * Previously Disliked: {disliked}
+    """
+    
+    content=requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent", params={"key": config["GEMINI_API_KEY"]}, json={"contents": [{"parts":[{"text": prompt.format(tuples=list(result_main.items()), liked=
 
