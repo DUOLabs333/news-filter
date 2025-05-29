@@ -27,7 +27,8 @@ TABLE="main"
 HISTORY_LIMIT=5_000
 POOL_LIMIT=10
 TAB_LIMIT=10 #How many items can be shown on a tab at any one time
-GEMINI_MODEL="gemini-2.5-flash-preview-05-20"
+GEMINI_MODEL="gemini-2.5-flash-preview-05-20" #The model keeps going over the thinking token limit
+GEMINI_MODEL="gemini-2.0-flash"
 
 # Route for the home page
 @app.route('/')
@@ -56,7 +57,7 @@ def get_tab(tab_name):
 
     result={}
 
-    for row in cur.execute(f"select id, id, category, title, post_url from {TABLE} where {query} order by {sort} limit {TAB_LIMIT}"):
+    for row in cur.execute(f"select id, category, title, post_url from {TABLE} where {query} order by {sort} limit {TAB_LIMIT}"):
         row=dict(row)
         id=row.pop("id")
         result[id]=row
@@ -192,7 +193,7 @@ def update():
                         {
                             "text": prompt.format(
                                             tuples=
-                                                {id: {col: stories[id][col] for col in main_cols} for id in stories}.items(), liked=[dict(row) for row in cur.execute(select_query, (1,))], disliked=[dict(row) for row in cur.execute(select_query, (0,))])}]}]}).json()
+                                                list({id: {col: stories[id][col] for col in main_cols} for id in stories}.items()), liked=[dict(row) for row in cur.execute(select_query, (1,))], disliked=[dict(row) for row in cur.execute(select_query, (0,))])}]}]}).json()
 
         print(response)
 
