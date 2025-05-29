@@ -38,9 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	    	// The backend will now explicitly add 'status' to all returned headlines
 
-	    	if (headline.status === 0) { // Disliked
+	    	if (headline.category === 0) { // Disliked
 			dislikeClass = 'dislike';
-		} else if (headline.status === 1) { // Liked
+		} else if (headline.category === 1) { // Liked
 			likeClass = 'like';
 		}
 
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			<button class="action-button ${dislikeClass}" data-id="${id}" data-action="dislike">X</button>
 			<button class="action-button ${likeClass}" data-id="${id}" data-action="like">&#10003;</button>
 		    </div>
-		    <a href="${headline.url}" target="_blank">${headline.title}</a>
+		    <a href="${headline.post_url}" target="_blank">${headline.title}</a>
 		</div>
 	    `;
 	    headlinesContainer.appendChild(headlineItem);
