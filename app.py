@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests, dotenv
 
 app = Flask(__name__)
+app.json.sort_keys = False #Needed, otherwise, Flask will reorder dictionaries passed into jsonify
 
 config=dotenv.dotenv_values()
 
