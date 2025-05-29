@@ -44,7 +44,7 @@ def get_tab(tab_name):
         sort="sorted_at desc"
 
     else:
-        query=f"sorted_at is null and category = {'0' if tab_name=="disliked" else '1'}"
+        query=f"sorted_at is null and category = {'0' if tab_name=='disliked' else '1'}"
         sort="""
             CASE
                 WHEN post_id LIKE 'lobsters-%' THEN 0
@@ -85,7 +85,7 @@ def get_cur():
             with cur_pool_lock:
                 cur=cur_pool.pop()
         except KeyError:
-            conn=sqlite3.connect(DATABASE, autocommit=True)
+            conn=sqlite3.connect(DATABASE, isolation_level=None)
             conn.row_factory = sqlite3.Row
             cur=conn.cursor()
 
@@ -117,18 +117,18 @@ def update():
     )
     select ids.id
     from ids
-    inner join {TABLE} t on ids.id=t.id;
+    inner join {TABLE} t on ids.id=t.post_id;
     """
     
     #Check if ids are already in database, to filter out superfluous requests
     
-    for id in cur.execute(query.format(placeholders=', '.join(['(?)'] * len(hn_stories))), hn_stories.keys()):
-        del hn_stories[id]
+    for id in cur.execute(query.format(placeholders=', '.join(['(?)'] * len(ids))), list(ids.keys())):
+        del ids[id]
         
     
     with ThreadPoolExecutor(max_workers=10) as pool:
-        while len(hn_stories)>0:
-            futures={pool.submit(lambda id: requests.get(f"https://hacker-news.firebaseio.com/v0/item/{val}.json")):key for key, val in hn_stories.items()}
+        while len(ids)>0:
+            futures={pool.submit(lambda: requests.get(f"https://hacker-news.firebaseio.com/v0/item/{val}.json")):key for key, val in ids.items()}
 
             for future in as_completed(futures):
                 response=future.result()
@@ -139,7 +139,7 @@ def update():
                     result[id]={"title": data["title"], "url": data.get("url", ""), "description": data.get("text", ""),  "tags": [],
                     "post_url": f"https://news.ycombinator.com/item?id={data['id']}", "created_at": data["time"]}
 
-                    del hn_stories[id]
+                    del ids[id]
 
 
     lobsters_stories=requests.get("https://lobste.rs/hottest.json").json()
@@ -201,7 +201,7 @@ def update():
                     inserted.append(row)
                     del result[id]
         if len(inserted)>0:
-            cur.executemany(f"insert into {TABLE} values ({",".join([":"+col for col in inserted[0].keys()])})", inserted)
+            cur.executemany(f"insert into {TABLE} values ({', '.join([':'+col for col in inserted[0].keys()])})", inserted)
         
        
 if not os.environ.get("RELOEADER_HAS_RUN"): #Environment guard --- otherwise, the exit handlers will be set for both the reloader process and the actual application process, leading to files bein g overwritten twice.
@@ -209,7 +209,8 @@ if not os.environ.get("RELOEADER_HAS_RUN"): #Environment guard --- otherwise, th
 else:   
     def update_loop():
         while True:
-            update()
+            with app.app_context():
+                update()
             time.sleep(1*60*60)
 
     threading.Thread(target=update_loop).start()
