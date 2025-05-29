@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const swipeDistance = currentTranslate;
             const pageWidth = window.innerWidth;
             const swipeThresholdPx = pageWidth * SWIPE_THRESHOLD_PERCENTAGE;
-            const headlineId = parseInt(activeHeadlineItem.dataset.id);
+            const headlineId = activeHeadlineItem.dataset.id;
 
             if (swipeDistance > swipeThresholdPx) {
                 // Swiped right (liked)
