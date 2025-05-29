@@ -182,7 +182,7 @@ def update():
     
     main_cols=["title", "url", "description", "tags"]
 
-    select_query=f"select {' , '.join(main_cols)} from {TABLE} where category = ?"
+    select_query=f"select {' , '.join(main_cols)} from {TABLE} where (category = ?) and (sorted_at is not null)"
 
     while len(stories)>0:
 
