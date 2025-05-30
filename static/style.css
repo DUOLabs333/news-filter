@@ -160,13 +160,13 @@ h1 {
     color: #333; /* Default text color for transparent buttons */
 }
 
-.action-button.dislike {
+.dislike {
     background-color: #dc3545; /* Red */
     color: white; /* White text for colored button */
     border-color: #dc3545; /* Match border to background */
 }
 
-.action-button.like {
+.like {
     background-color: #28a745; /* Green */
     color: white; /* White text for colored button */
     border-color: #28a745; /* Match border to background */
@@ -175,3 +175,22 @@ h1 {
 .action-button:hover {
     opacity: 0.9;
 }
+
+.button-choose {
+    background-color: transparent;
+    color: black;
+}
+
+.button-choose:hover {
+	transition: 0.3s ease;
+	color: white;
+}
+.button-choose.dislike:hover {
+    background-color: #dc3545; /* Red on hover */
+}
+
+.button-choose.like:hover {
+    background-color: #28a745; /* Green on hover */
+}
+
+

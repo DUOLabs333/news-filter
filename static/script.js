@@ -44,6 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
 			likeClass = 'like';
 		}
 
+		if (currentTab === 'liked' || currentTab === 'disliked') {
+			dislikeClass="dislike button-choose";
+			likeClass="like button-choose";
+            	}
+
 	    // New HTML structure for swipe feedback
 	    headlineItem.innerHTML = `
 		<div class="swipe-background">
