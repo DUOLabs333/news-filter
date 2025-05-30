@@ -154,8 +154,6 @@ def update():
     lobsters=requests.get("https://lobste.rs/hottest.json").json()
     ids=[]
     for story in lobsters:
-        continue #Disable Lobste.rs integration for now --- hottest only returns the first page, when in fact, I want more than the first page
-
         id=f"lobsters-{story['short_id']}"
         ids.append(id)
 
