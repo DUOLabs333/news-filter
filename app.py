@@ -163,7 +163,7 @@ def update():
 
     if len(ids)>0:
         for id in cur.execute(query.format(placeholders=', '.join(['(?)'] * len(ids))), ids):
-            del stories[id]
+            del stories[id[0]]
 
 
     prompt="""
